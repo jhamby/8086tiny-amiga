@@ -1,7 +1,9 @@
 8086tiny-amiga
 ==============
 
-This is Jake Hamby's local repo for 8086tiny, where I'm making minimal changes to port it to AmigaOS and add the necessary capabilities to play the "8088 Domination" PC demo with Sound Blaster Pro emulation. I'm also working on a project to port 8086tiny to 6502 and 65C816 assembly language, because the code lends itself to it, and I think it would be delightful to see MS-DOS running in emulation on a Commodore 128 or Apple IIGS.
+This is Jake Hamby's local repo for 8086tiny, where I'm making minimal changes to port the emulator to run on AmigaOS and add the necessary capabilities to play the "8088 Domination" PC demo with Sound Blaster Pro emulation. I'm also working on a project to port 8086tiny to 6502 and 65C816 assembly language, because the code lends itself to it, and I think it would be delightful to see MS-DOS running in emulation on a Commodore 128 or Apple IIGS.
+
+The GCC cross-development toolchain I'm using is available here: https://github.com/bebbo/amiga-gcc
 
 The original 8086tiny README.md follows.
 
