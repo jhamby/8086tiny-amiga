@@ -5,6 +5,8 @@ This is Jake Hamby's local repo for 8086tiny, where I'm making minimal changes t
 
 The GCC cross-development toolchain I'm using is available here: https://github.com/bebbo/amiga-gcc
 
+The first order of business is to fix the code to run on big-endian systems, and to link with the libs provided by the toolchain.
+
 The original 8086tiny README.md follows.
 
 8086tiny

@@ -1,5 +1,6 @@
 // 8086tiny: a tiny, highly functional, highly portable PC emulator/VM
 // Copyright 2013-14, Adrian Cable (adrian.cable@gmail.com) - http://www.megalith.co.uk/8086tiny
+// Copyright 2020, Jake Hamby (jake.hamby@gmail.com).
 //
 // Revision 1.25
 //
@@ -97,7 +98,7 @@
 					  i_d && (scratch_uint = op_from_addr, op_from_addr = rm_addr, op_to_addr = scratch_uint)
 
 // Return memory-mapped register location (offset into mem array) for register #reg_id
-#define GET_REG_ADDR(reg_id) (REGS_BASE + (i_w ? 2 * reg_id : 2 * reg_id + reg_id / 4 & 7))
+#define GET_REG_ADDR(reg_id) (REGS_BASE + (i_w ? 2 * reg_id : (2 * reg_id + reg_id / 4) & 7))
 
 // Returns number of top bit in operand (i.e. 8 for 8-bit operands, 16 for 16-bit operands)
 #define TOP_BIT 8*(i_w + 1)
@@ -155,42 +156,42 @@
 #endif
 
 // Global variable definitions
-unsigned char mem[RAM_SIZE], io_ports[IO_PORT_COUNT], *opcode_stream, *regs8, i_rm, i_w, i_reg, i_mod, i_mod_size, i_d, i_reg4bit, raw_opcode_id, xlat_opcode_id, extra, rep_mode, seg_override_en, rep_override_en, trap_flag, int8_asap, scratch_uchar, io_hi_lo, *vid_mem_base, spkr_en, bios_table_lookup[20][256];
-unsigned short *regs16, reg_ip, seg_override, file_index, wave_counter;
-unsigned int op_source, op_dest, rm_addr, op_to_addr, op_from_addr, i_data0, i_data1, i_data2, scratch_uint, scratch2_uint, inst_counter, set_flags_type, GRAPHICS_X, GRAPHICS_Y, pixel_colors[16], vmem_ctr;
-int op_result, disk[3], scratch_int;
-time_t clock_buf;
-struct timeb ms_clock;
+static unsigned char mem[RAM_SIZE], io_ports[IO_PORT_COUNT], *opcode_stream, *regs8, i_rm, i_w, i_reg, i_mod, i_mod_size, i_d, i_reg4bit, raw_opcode_id, xlat_opcode_id, extra, rep_mode, seg_override_en, rep_override_en, trap_flag, int8_asap, scratch_uchar, io_hi_lo, *vid_mem_base, spkr_en, bios_table_lookup[20][256];
+static unsigned short *regs16, reg_ip, seg_override, file_index, wave_counter;
+static unsigned int op_source, op_dest, rm_addr, op_to_addr, op_from_addr, i_data0, i_data1, i_data2, scratch_uint, scratch2_uint, inst_counter, set_flags_type, GRAPHICS_X, GRAPHICS_Y, pixel_colors[16];
+static int op_result, disk[3], scratch_int;
+static time_t clock_buf;
+static struct timeb ms_clock;
 
 #ifndef NO_GRAPHICS
-SDL_AudioSpec sdl_audio = {44100, AUDIO_U8, 1, 0, 128};
-SDL_Surface *sdl_screen;
-SDL_Event sdl_event;
-unsigned short vid_addr_lookup[VIDEO_RAM_SIZE], cga_colors[4] = {0 /* Black */, 0x1F1F /* Cyan */, 0xE3E3 /* Magenta */, 0xFFFF /* White */};
+static SDL_AudioSpec sdl_audio = {44100, AUDIO_U8, 1, 0, 128};
+static SDL_Surface *sdl_screen;
+static SDL_Event sdl_event;
+static unsigned short vid_addr_lookup[VIDEO_RAM_SIZE], cga_colors[4] = {0 /* Black */, 0x1F1F /* Cyan */, 0xE3E3 /* Magenta */, 0xFFFF /* White */};
 #endif
 
 // Helper functions
 
 // Set carry flag
-char set_CF(int new_CF)
+static char set_CF(int new_CF)
 {
 	return regs8[FLAG_CF] = !!new_CF;
 }
 
 // Set auxiliary flag
-char set_AF(int new_AF)
+static char set_AF(int new_AF)
 {
 	return regs8[FLAG_AF] = !!new_AF;
 }
 
 // Set overflow flag
-char set_OF(int new_OF)
+static char set_OF(int new_OF)
 {
 	return regs8[FLAG_OF] = !!new_OF;
 }
 
 // Set auxiliary and overflow flag after arithmetic operations
-char set_AF_OF_arith()
+static char set_AF_OF_arith()
 {
 	set_AF((op_source ^= op_dest ^ op_result) & 0x10);
 	if (op_result == op_dest)
@@ -200,7 +201,7 @@ char set_AF_OF_arith()
 }
 
 // Assemble and return emulated CPU FLAGS register in scratch_uint
-void make_flags()
+static void make_flags()
 {
 	scratch_uint = 0xF002; // 8086 has reserved and unused flags set to 1
 	for (int i = 9; i--;)
@@ -208,7 +209,7 @@ void make_flags()
 }
 
 // Set emulated CPU FLAGS register from regs8[FLAG_xx] values
-void set_flags(int new_flags)
+static void set_flags(int new_flags)
 {
 	for (int i = 9; i--;)
 		regs8[FLAG_CF + i] = !!(1 << bios_table_lookup[TABLE_FLAGS_BITFIELDS][i] & new_flags);
@@ -216,7 +217,7 @@ void set_flags(int new_flags)
 
 // Convert raw opcode to translated opcode index. This condenses a large number of different encodings of similar
 // instructions into a much smaller number of distinct functions, which we then execute
-void set_opcode(unsigned char opcode)
+static void set_opcode(unsigned char opcode)
 {
 	xlat_opcode_id = bios_table_lookup[TABLE_XLAT_OPCODE][raw_opcode_id = opcode];
 	extra = bios_table_lookup[TABLE_XLAT_SUBFUNCTION][opcode];
@@ -225,7 +226,7 @@ void set_opcode(unsigned char opcode)
 }
 
 // Execute INT #interrupt_num on the emulated machine
-char pc_interrupt(unsigned char interrupt_num)
+static char pc_interrupt(unsigned char interrupt_num)
 {
 	set_opcode(0xCD); // Decode like INT
 
@@ -240,13 +241,13 @@ char pc_interrupt(unsigned char interrupt_num)
 }
 
 // AAA and AAS instructions - which_operation is +1 for AAA, and -1 for AAS
-int AAA_AAS(char which_operation)
+static int AAA_AAS(char which_operation)
 {
 	return (regs16[REG_AX] += 262 * which_operation*set_AF(set_CF(((regs8[REG_AL] & 0x0F) > 9) || regs8[FLAG_AF])), regs8[REG_AL] &= 0x0F);
 }
 
 #ifndef NO_GRAPHICS
-void audio_callback(void *data, unsigned char *stream, int len)
+static void audio_callback(void *data, unsigned char *stream, int len)
 {
 	for (int i = 0; i < len; i++)
 		stream[i] = (spkr_en == 3) && CAST(unsigned short)mem[0x4AA] ? -((54 * wave_counter++ / CAST(unsigned short)mem[0x4AA]) & 1) : sdl_audio.silence;
@@ -554,7 +555,7 @@ int main(int argc, char **argv)
 					{
 						MEM_OP(extra ? REGS_BASE : SEGREG(scratch2_uint, REG_SI,), -, SEGREG(REG_ES, REG_DI,)),
 						extra || INDEX_INC(REG_SI),
-						INDEX_INC(REG_DI), rep_override_en && !(--regs16[REG_CX] && (!op_result == rep_mode)) && (scratch_uint = 0);
+						INDEX_INC(REG_DI), rep_override_en && !(--regs16[REG_CX] && ((!op_result) == rep_mode)) && (scratch_uint = 0);
 					}
 
 					set_flags_type = FLAGS_UPDATE_SZP | FLAGS_UPDATE_AO_ARITH; // Funge to set SZP/AO flags
@@ -650,7 +651,7 @@ int main(int argc, char **argv)
 					pc_interrupt(0)
 			OPCODE 42: // AAD
 				i_w = 0;
-				regs16[REG_AX] = op_result = 0xFF & regs8[REG_AL] + i_data0 * regs8[REG_AH]
+				regs16[REG_AX] = op_result = 0xFF & (regs8[REG_AL] + i_data0 * regs8[REG_AH])
 			OPCODE 43: // SALC
 				regs8[REG_AL] = -regs8[FLAG_CF]
 			OPCODE 44: // XLAT
